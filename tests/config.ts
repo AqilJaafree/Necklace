@@ -10,8 +10,9 @@ const bool = z
 const ConfigSchema = z.object({
     SRC_CHAIN_RPC: z.string().url(),
     DST_CHAIN_RPC: z.string().url(),
+    SUI_RPC: z.string().url().default('https://fullnode.testnet.sui.io:443'),
     SRC_CHAIN_CREATE_FORK: bool.default('true'),
-    DST_CHAIN_CREATE_FORK: bool.default('true')
+    DST_CHAIN_CREATE_FORK: bool.default('true'),
 })
 
 const fromEnv = ConfigSchema.parse(process.env)
@@ -45,8 +46,19 @@ export const config = {
                     donor: '0x4188663a85C92EEa35b5AD3AA5cA7CeB237C6fe9'
                 }
             }
+        },
+        // Sui configuration
+        sui: {
+            network: 'testnet' as const,
+            url: fromEnv.SUI_RPC,
+            packageId: process.env.SUI_PACKAGE_ID || '0x0',
+            ownerPrivateKey: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+            coins: {
+                SUI: '0x2::sui::SUI',
+            }
         }
     }
 } as const
 
 export type ChainConfig = (typeof config.chain)['source' | 'destination']
+export type SuiConfig = (typeof config.chain)['sui']
