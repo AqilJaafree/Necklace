@@ -1,6 +1,7 @@
+// tests/sui-resolver.ts - Fix hash creation logic
 import { TransactionBlock } from '@mysten/sui.js/transactions';
 import { SuiClient } from '@mysten/sui.js/client';
-import { createHash } from 'crypto';
+import { keccak256 } from 'ethers';
 
 // Type definitions (mirror Sui Move structs)
 export interface SuiTimeLocks {
@@ -215,7 +216,7 @@ export class SuiResolver {
         };
     }
 
-    // Create immutables helper
+    // Create immutables helper - FIXED: Use keccak256 to match Move contract
     static createImmutables(
         orderHash: string,
         secret: string,
@@ -227,8 +228,9 @@ export class SuiResolver {
         timeLocks: SuiTimeLocks,
         ethereumOrderHash: string
     ): SuiImmutables {
-        // Hash the secret using SHA-256 (same as Move contract)
-        const hashLock = createHash('sha256').update(Buffer.from(secret.replace('0x', ''), 'hex')).digest();
+        // FIXED: Use keccak256 to match Sui Move contract and Ethereum
+        // keccak256 returns "0x..." so we slice(2) to get just the hex
+        const hashLock = Buffer.from(keccak256(Buffer.from(secret)).slice(2), 'hex');
 
         return {
             orderHash: Buffer.from(orderHash.replace('0x', ''), 'hex'),

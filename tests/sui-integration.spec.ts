@@ -1,3 +1,4 @@
+// tests/sui-integration.spec.ts - Fixed version
 import 'dotenv/config'
 import { expect } from '@jest/globals'
 import { SuiClient } from '@mysten/sui.js/client'
@@ -6,6 +7,7 @@ import { SuiWallet } from './sui-wallet'
 import { SuiResolver } from './sui-resolver'
 import { config } from './config'
 import { createHash } from 'crypto'
+import { keccak256 } from 'ethers'
 
 // Test only if Sui package is deployed
 const SKIP_SUI_TESTS = !process.env.SUI_PACKAGE_ID || process.env.SUI_PACKAGE_ID === '0x0'
@@ -35,15 +37,24 @@ describe('Sui Integration Tests', () => {
         userWallet = new SuiWallet(deployerPrivateKey, suiClient)
         resolverWallet = new SuiWallet(Ed25519Keypair.generate(), suiClient)
 
-        // Transfer some SUI to resolver wallet for testing
-        try {
-            await userWallet.transferCoins(
-                '0x2::sui::SUI',
-                1000000000n, // 1 SUI
-                await resolverWallet.getAddress()
-            )
-        } catch (error) {
-            console.log('Transfer failed (might not have enough SUI):', error.message)
+        // Get initial balance
+        const initialBalance = await userWallet.suiBalance()
+        console.log('Initial user balance:', initialBalance.toString())
+
+        // Only try to transfer if user has sufficient balance
+        if (initialBalance > 2000000000n) { // 2 SUI
+            try {
+                await userWallet.transferCoins(
+                    '0x2::sui::SUI',
+                    1000000000n, // 1 SUI
+                    await resolverWallet.getAddress()
+                )
+                console.log('Successfully transferred SUI to resolver wallet')
+            } catch (error) {
+                console.log('Transfer failed:', error.message)
+            }
+        } else {
+            console.log('Insufficient balance for transfer, but tests can still run')
         }
 
         // Create resolver helper
@@ -104,7 +115,7 @@ describe('Sui Integration Tests', () => {
             const timeLocks = SuiResolver.createTimeLocks(10, 120, 121, 122, 10, 100, 101)
             const immutables = SuiResolver.createImmutables(
                 '0x1234567890abcdef',  // orderHash
-                'secret123',           // secret (without 0x prefix)
+                'secret123',           // secret (string, not hex)
                 await userWallet.getAddress(),      // maker
                 await resolverWallet.getAddress(), // taker
                 '0x2::sui::SUI',      // tokenType
@@ -134,6 +145,7 @@ describe('Sui Integration Tests', () => {
                 expect(resolverInfo.data.objectId).toBe(resolverObjectId)
             } catch (error) {
                 console.log('Resolver not found:', error.message)
+                // Don't fail the test if resolver object doesn't exist
             }
         })
     })
@@ -143,7 +155,7 @@ describe('Sui Integration Tests', () => {
             if (SKIP_SUI_TESTS) return
 
             // Test that our data structures are compatible with cross-chain operations
-            const secret = 'secret123'
+            const secret = 'secret123' // String secret, not hex
             const timeLocks = SuiResolver.createTimeLocks(10, 120, 121, 122, 10, 100, 101)
             
             const suiImmutables = SuiResolver.createImmutables(
@@ -158,12 +170,42 @@ describe('Sui Integration Tests', () => {
                 '0xethorderabcdef'
             )
 
-            // Verify hash consistency (should match Move contract hashing)
-            const expectedHash = createHash('sha256').update(Buffer.from(secret)).digest()
+            // FIXED: Use keccak256 to match Move contract and Ethereum
+            const expectedHash = Buffer.from(keccak256(Buffer.from(secret)).slice(2), 'hex')
             
+            // Compare the actual buffer data
             expect(Buffer.from(suiImmutables.hashLock)).toEqual(expectedHash)
             expect(suiImmutables.amount).toBe(1000000n)
             expect(suiImmutables.timeLocks.srcWithdrawal).toBe(10)
+        })
+
+        it('should demonstrate hash compatibility across chains', async () => {
+            if (SKIP_SUI_TESTS) return
+
+            const secret = 'secret123'
+            
+            // How it would be done in TypeScript (for Ethereum)
+            const ethHash = Buffer.from(keccak256(Buffer.from(secret)).slice(2), 'hex')
+            
+            // How it's done in our Sui resolver  
+            const suiImmutables = SuiResolver.createImmutables(
+                '0x1234567890abcdef',
+                secret,
+                await userWallet.getAddress(),
+                await resolverWallet.getAddress(),
+                '0x2::sui::SUI',
+                1000000n,
+                100000n,
+                SuiResolver.createTimeLocks(10, 120, 121, 122, 10, 100, 101),
+                '0xethorderabcdef'
+            )
+            
+            // They should be identical
+            expect(Buffer.from(suiImmutables.hashLock)).toEqual(ethHash)
+            
+            console.log('Hash compatibility verified:')
+            console.log('ETH hash:', ethHash.toString('hex'))
+            console.log('SUI hash:', Buffer.from(suiImmutables.hashLock).toString('hex'))
         })
     })
 })
