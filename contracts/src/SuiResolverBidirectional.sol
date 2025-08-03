@@ -1,4 +1,3 @@
-    // contracts/src/SuiResolverBidirectional.sol
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
@@ -17,10 +16,15 @@ import "./SuiVerifier.sol";
 /**
  * @title SuiResolverBidirectional - COMPLETE BIDIRECTIONAL SUPPORT
  * @dev Enhanced resolver with full Ethereum→Sui coordination capabilities
- * Combines all functionality: Resolver + SuiVerifier + Live Coordination + Bidirectional Support
+ * 
+ * FIXED ISSUES:
+ * - ✅ Removed duplicate FACTORY/LOP declarations
+ * - ✅ Clean constructor inheritance
+ * - ✅ Added proper access patterns for parent contract functionality
+ * - ✅ Enhanced bidirectional flow management
  * 
  * BIDIRECTIONAL FLOWS:
- * 1. Sui→Ethereum: Already working ✅
+ * 1. Sui→Ethereum: Inherited from SuiResolver ✅
  * 2. Ethereum→Sui: This implementation ✅
  * 
  * @custom:security-contact security@1inch.io
@@ -30,24 +34,24 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
     using TimelocksLib for Timelocks;
 
     // ===========================================
-    // 🔄 ENHANCED STORAGE FROM SUIRESOLVER
+    // 🔄 STORAGE - Sui→Ethereum (from SuiResolver pattern)
     // ===========================================
     
-    // Live secret coordination storage (from SuiResolver)
+    // Live secret coordination storage
     mapping(bytes32 => bytes32) public liveSecrets; // suiEscrowId => secret
     mapping(bytes32 => bool) public secretCoordinated; // secret => coordinated
     mapping(bytes32 => uint256) public secretTimestamp; // secret => reveal timestamp
     mapping(bytes32 => address) public secretCoordinator; // secret => coordinator address
     mapping(bytes32 => string) public coordinationStatus; // escrowId => status
     
-    // Enhanced cross-chain coordination mappings (from SuiResolver)
+    // Cross-chain coordination mappings
     mapping(bytes32 => bytes32) public suiEscrowToOrder; // suiEscrowId => ethereumOrderHash
     mapping(bytes32 => bytes32) public orderToSuiEscrow; // ethereumOrderHash => suiEscrowId
     mapping(bytes32 => bool) public crossChainMappingExists; // orderHash => exists
     mapping(bytes32 => bool) public revealedSecrets; // Track revealed secrets
     
     // ===========================================
-    // 🔄 NEW BIDIRECTIONAL STORAGE
+    // 🔄 NEW BIDIRECTIONAL STORAGE - Ethereum→Sui
     // ===========================================
     
     // Ethereum→Sui direction storage
@@ -68,6 +72,10 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
     mapping(bytes32 => string) public bidirectionalStatus; // orderHash => status
     mapping(bytes32 => address) public ethereumInitiator; // orderHash => initiator
     
+    // ===========================================
+    // 🔄 DATA STRUCTURES
+    // ===========================================
+    
     struct EthereumEscrowData {
         bytes32 orderHash;
         bytes32 secretHash;
@@ -80,27 +88,30 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
         bool isActive;
     }
     
-    // Store factory and LOP references 
-    IEscrowFactory private immutable FACTORY;
-    IOrderMixin private immutable LOP;
-    
     // Coordination settings
     uint256 public constant COORDINATION_TIMEOUT = 3600; // 1 hour
+    uint256 public constant MAX_COORDINATION_ATTEMPTS = 3;
+    mapping(bytes32 => uint256) public coordinationAttempts; // secret => attempts
 
+    // ===========================================
+    // 🔄 CONSTRUCTOR - FIXED VERSION
+    // ===========================================
+    
     constructor(
         IEscrowFactory factory,
         IOrderMixin lop,
         address initialOwner
     ) Resolver(factory, lop, initialOwner) {
-        FACTORY = factory;
-        LOP = lop;
+        // ✅ Clean constructor - parent handles factory and lop storage
+        // ✅ No duplicate variable assignments
+        // ✅ All initialization handled by parent contracts
     }
     
     // ===========================================
-    // 🔄 ENHANCED EVENTS (SuiResolver + Bidirectional)
+    // 🔄 EVENTS - Complete event system
     // ===========================================
     
-    // Original SuiResolver events
+    // Sui→Ethereum events (inherited pattern)
     event SuiEscrowDeployed(
         bytes32 indexed orderHash,
         bytes32 indexed suiEscrowId,
@@ -182,11 +193,11 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
     );
 
     // ===========================================
-    // 🔥 LIVE COORDINATION FUNCTIONS (from SuiResolver)
+    // 🔥 SUI→ETHEREUM COORDINATION (Live coordination)
     // ===========================================
 
     /**
-     * @dev 🔥 MAIN FUNCTION: Coordinate secret from Sui to Ethereum
+     * @dev 🔥 Coordinate secret from Sui to Ethereum
      */
     function coordinateSecretFromSui(
         bytes32 suiEscrowId,
@@ -211,7 +222,6 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
             crossChainMappingExists[ethereumOrderHash] = true;
         }
         
-        // Emit coordination events
         emit LiveSecretCoordinated(
             suiEscrowId,
             ethereumOrderHash,
@@ -242,7 +252,7 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
     }
 
     /**
-     * @dev 🔥 Check if secret is available for coordination
+     * @dev 🔥 Check if secret is coordinated
      */
     function isSecretCoordinated(bytes32 secret) external view returns (bool) {
         return secretCoordinated[secret] && !revealedSecrets[secret];
@@ -336,23 +346,6 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
     }
     
     /**
-     * @dev 🔄 Get revealed Ethereum secret for Sui usage
-     */
-    function getEthereumRevealedSecret(bytes32 orderHash) external view returns (
-        bytes32 secret,
-        bool available,
-        uint256 timestamp,
-        address revealer,
-        string memory status
-    ) {
-        secret = ethereumRevealedSecrets[orderHash];
-        available = secret != bytes32(0) && !secretUsedOnSui[secret];
-        timestamp = ethereumSecretTimestamp[orderHash];
-        revealer = ethereumInitiator[orderHash];
-        status = bidirectionalStatus[orderHash];
-    }
-    
-    /**
      * @dev 🔄 Complete Sui withdrawal using Ethereum-revealed secret
      */
     function completeSuiWithdrawalFromEthereumSecret(
@@ -383,7 +376,7 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
     }
     
     // ===========================================
-    // 🔄 ENHANCED BIDIRECTIONAL UTILITIES
+    // 🔄 ENHANCED UTILITIES AND GETTERS
     // ===========================================
     
     /**
@@ -425,6 +418,23 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
     }
     
     /**
+     * @dev Get revealed Ethereum secret for Sui usage
+     */
+    function getEthereumRevealedSecret(bytes32 orderHash) external view returns (
+        bytes32 secret,
+        bool available,
+        uint256 timestamp,
+        address revealer,
+        string memory status
+    ) {
+        secret = ethereumRevealedSecrets[orderHash];
+        available = secret != bytes32(0) && !secretUsedOnSui[secret];
+        timestamp = ethereumSecretTimestamp[orderHash];
+        revealer = ethereumInitiator[orderHash];
+        status = bidirectionalStatus[orderHash];
+    }
+    
+    /**
      * @dev Check if bidirectional swap is ready for completion
      */
     function isBidirectionalSwapReady(bytes32 orderHash) external view returns (
@@ -439,8 +449,45 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
         canComplete = ethereumReady && suiReady && secretRevealed;
     }
     
+    // ===========================================
+    // 🔄 ENHANCED FUNCTIONS FROM PARENT PATTERNS
+    // ===========================================
+    
     /**
-     * @dev Emergency functions for bidirectional swaps
+     * @dev Enhanced withdrawal using secret revealed on Sui
+     * @notice This uses parent contract's withdraw functionality with enhanced coordination
+     */
+    function withdrawWithCoordinatedSecret(
+        IEscrow escrow,
+        IBaseEscrow.Immutables calldata immutables,
+        bytes32 suiEscrowId
+    ) external {
+        // Get the coordinated secret
+        bytes32 secret = liveSecrets[suiEscrowId];
+        require(secret != bytes32(0), "No secret available");
+        require(secretCoordinated[secret], "Secret not coordinated");
+        require(!revealedSecrets[secret], "Secret already used");
+        
+        // Mark as used
+        revealedSecrets[secret] = true;
+        coordinationStatus[suiEscrowId] = "SECRET_USED_ON_ETHEREUM";
+        
+        // Use parent's withdraw functionality
+        this.withdraw(escrow, secret, immutables);
+        
+        // Emit coordination events
+        bytes32 orderHash = suiEscrowToOrder[suiEscrowId];
+        emit SuiSecretUsed(orderHash, secret, msg.sender);
+        emit CrossChainSwapCompleted(orderHash, address(this), address(this), immutables.amount, immutables.amount);
+        emit LiveCoordinationStatus(suiEscrowId, "ETHEREUM_WITHDRAWAL_COMPLETE", block.timestamp);
+    }
+    
+    // ===========================================
+    // 🔄 EMERGENCY AND ADMIN FUNCTIONS
+    // ===========================================
+    
+    /**
+     * @dev Emergency cancel Ethereum order
      */
     function emergencyCancelEthereumOrder(bytes32 orderHash) external {
         require(ethereumInitiator[orderHash] == msg.sender || msg.sender == owner(), "Unauthorized");
@@ -456,133 +503,42 @@ contract SuiResolverBidirectional is Resolver, SuiVerifier {
     }
     
     /**
-     * @dev Batch process multiple bidirectional operations
+     * @dev Emergency reset coordination state
      */
-    function batchProcessBidirectional(
-        bytes32[] calldata orderHashes,
-        bytes32[] calldata suiEscrowIds,
-        string[] calldata operations
-    ) external {
-        require(orderHashes.length == suiEscrowIds.length, "Array length mismatch");
-        require(suiEscrowIds.length == operations.length, "Array length mismatch");
-        
-        for (uint256 i = 0; i < orderHashes.length; i++) {
-            if (keccak256(bytes(operations[i])) == keccak256(bytes("LINK"))) {
-                if (ethereumOrderExists[orderHashes[i]] && ethereumOrderToSuiEscrow[orderHashes[i]] == bytes32(0)) {
-                    ethereumOrderToSuiEscrow[orderHashes[i]] = suiEscrowIds[i];
-                    suiEscrowToEthereumOrder[suiEscrowIds[i]] = orderHashes[i];
-                }
-            } else if (keccak256(bytes(operations[i])) == keccak256(bytes("COMPLETE"))) {
-                if (ethereumRevealedSecrets[orderHashes[i]] != bytes32(0) && !secretUsedOnSui[ethereumRevealedSecrets[orderHashes[i]]]) {
-                    secretUsedOnSui[ethereumRevealedSecrets[orderHashes[i]]] = true;
-                    ethereumEscrowActive[orderHashes[i]] = false;
-                }
-            }
-        }
-        
-        emit LiveCoordinationStatus(
-            bytes32(uint256(orderHashes.length)),
-            "BATCH_BIDIRECTIONAL_COMPLETE",
-            block.timestamp
+    function emergencyResetCoordination(bytes32 suiEscrowId) external onlyOwner {
+        bytes32 secret = liveSecrets[suiEscrowId];
+        require(
+            block.timestamp > secretTimestamp[secret] + COORDINATION_TIMEOUT,
+            "Coordination too recent"
         );
+        
+        // Reset state
+        delete liveSecrets[suiEscrowId];
+        delete secretCoordinated[secret];
+        delete secretTimestamp[secret];
+        delete secretCoordinator[secret];
+        coordinationStatus[suiEscrowId] = "RESET";
+        
+        emit LiveCoordinationStatus(suiEscrowId, "EMERGENCY_RESET", block.timestamp);
     }
     
     // ===========================================
-    // 🔄 ENHANCED GETTERS FOR BIDIRECTIONAL SUPPORT
+    // 🔄 CONVENIENCE GETTERS
     // ===========================================
     
-    /**
-     * @dev Get all active Ethereum orders
-     */
-    function getActiveEthereumOrders() external view returns (bytes32[] memory) {
-        // This would need to be implemented with proper iteration
-        // For now, return empty array
-        bytes32[] memory empty;
-        return empty;
+    function getSuiEscrowForOrder(bytes32 orderHash) external view returns (bytes32) {
+        return orderToSuiEscrow[orderHash];
+    }
+
+    function getOrderForSuiEscrow(bytes32 suiEscrowId) external view returns (bytes32) {
+        return suiEscrowToOrder[suiEscrowId];
+    }
+
+    function isSecretRevealed(bytes32 secret) external view returns (bool) {
+        return revealedSecrets[secret];
     }
     
-    /**
-     * @dev Check if secret can be used for Sui withdrawal
-     */
     function canUseSecretOnSui(bytes32 secret) external view returns (bool) {
         return !secretUsedOnSui[secret];
     }
-    
-    /**
-     * @dev Get bidirectional coordination stats
-     */
-    function getBidirectionalStats() external view returns (
-        uint256 totalEthereumOrders,
-        uint256 activeEthereumOrders,
-        uint256 completedBidirectionalSwaps,
-        uint256 pendingCoordinations
-    ) {
-        // Implementation would track these stats
-        // For now, return zeros
-        return (0, 0, 0, 0);
-    }
-}
-
-// ===========================================
-// 🔄 ADDITIONAL INTERFACES FOR BIDIRECTIONAL SUPPORT
-// ===========================================
-
-interface IBidirectionalResolver {
-    function initiateEthereumToSuiSwap(
-        bytes32 orderHash,
-        bytes32 secretHash,
-        address maker,
-        address taker,
-        address token,
-        uint256 amount,
-        uint256 safetyDeposit
-    ) external payable;
-    
-    function linkEthereumOrderToSuiEscrow(
-        bytes32 ethereumOrderHash,
-        bytes32 suiEscrowId
-    ) external;
-    
-    function revealEthereumSecret(
-        bytes32 orderHash,
-        string calldata secret
-    ) external;
-    
-    function completeSuiWithdrawalFromEthereumSecret(
-        bytes32 orderHash,
-        bytes32 suiEscrowId
-    ) external;
-    
-    function getBidirectionalMapping(bytes32 identifier) external view returns (
-        bytes32 ethereumOrder,
-        bytes32 suiEscrow,
-        bool mappingExists,
-        string memory status
-    );
-}
-
-/**
- * @title BidirectionalEvents
- * @dev Event library for bidirectional coordination
- */
-library BidirectionalEvents {
-    event DirectionInitiated(
-        string indexed direction,
-        bytes32 indexed orderHash,
-        bytes32 indexed escrowId,
-        address initiator
-    );
-    
-    event DirectionCompleted(
-        string indexed direction,
-        bytes32 indexed orderHash,
-        bytes32 indexed escrowId,
-        address completer
-    );
-    
-    event CrossChainLinkEstablished(
-        bytes32 indexed ethereumOrder,
-        bytes32 indexed suiEscrow,
-        string direction
-    );
 }
