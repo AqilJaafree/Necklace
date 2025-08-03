@@ -21,10 +21,10 @@ const REAL_USDC_CONFIG = {
     }
 }
 
-// Your deployed addresses
-const SUI_PACKAGE = '0x2649d770fdeda172fc3854cfbd8893ed87eae6a9cf5dd9aa72ecf6d93d824dff'
-const SUI_FACTORY_ID = '0x4a67a605d45460e06e1e3cacfc4ddc58eeb0cf9d67e9134ae35e5e46b7308ba0'
-const ETH_RESOLVER = process.env.SUI_RESOLVER_BIDIRECTIONAL! // Your bidirectional contract
+// SUI PACKAGE and FACTORY IDs
+const SUI_PACKAGE = '0xaf90cfbcc727573f998cb18340e2ac2f15b578ffee624f724601e2ba8ec17f73'  // NEW
+const SUI_FACTORY_ID = '0xd224158a8f53f1ec34ac63a062932d7e55f368f0ff0d719bc778e156d09bf4fb'  // NEW
+const ETH_RESOLVER = process.env.SUI_RESOLVER_BIDIRECTIONAL!  // Your Ethereum contract
 
 class RealUSDCBidirectionalTest {
     private suiClient: SuiClient

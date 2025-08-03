@@ -15,7 +15,9 @@
     "eth-sui-integration": "tsx scripts/ethereum-sui-integration.ts",
     "usdc-cross-chain": "tsx scripts/usdc-cross-chain-demo.ts",
     "setup-sepolia-usdc": "tsx scripts/sepolia-usdc-integration.ts",
-    "usdc-demo": "npm run setup-sepolia-usdc && npm run usdc-cross-chain"
+    "usdc-demo": "npm run setup-sepolia-usdc && npm run usdc-cross-chain",
+    "test-new-lop-merkle" : "tsx scripts/test-new-lop-merkle.ts",
+    "real-bidirectional-test": "tsx scripts/real-usdc-bidirectional-test.ts"
   },
   "devDependencies": {
     "@1inch/eslint-config": "^v3.0.7",
